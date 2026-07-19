@@ -13,7 +13,6 @@
     height: 100vh;
   }
 
-  /* dark overlay to match the original composition */
   .overlay {
     position: absolute;
     inset: 0;
@@ -21,7 +20,6 @@
     pointer-events: none;
   }
 
-  /* soft glow behind the planet/sphere, same as original */
   .glow {
     position: absolute;
     top: 55%;
