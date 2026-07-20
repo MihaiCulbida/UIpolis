@@ -63,7 +63,6 @@ function initShaderBackground(canvas) {
     }
     const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
     gl.useProgram(program);
-    // Un dreptunghi (2 triunghiuri) care acopera tot ecranul
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
@@ -97,4 +96,4 @@ window.addEventListener("DOMContentLoaded", () => {
         initShaderBackground(canvas);
     }
 });
-export {};
+

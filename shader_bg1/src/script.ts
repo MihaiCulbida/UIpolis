@@ -71,7 +71,6 @@ function initShaderBackground(canvas: HTMLCanvasElement): void {
   const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
   gl.useProgram(program);
 
-  // Un dreptunghi (2 triunghiuri) care acopera tot ecranul
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(
