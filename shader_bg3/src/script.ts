@@ -1,3 +1,5 @@
+export{}
+
 declare const THREE: any;
 
 (function () {
