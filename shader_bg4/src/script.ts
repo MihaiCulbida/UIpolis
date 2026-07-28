@@ -1,3 +1,5 @@
+export{}
+
 interface NebulaOptions {
   backgroundColor?: string;
   strandColor?: string;
