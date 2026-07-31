@@ -285,6 +285,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("mesh-container") as HTMLDivElement | null;
   const canvas = document.getElementById("mesh-canvas") as HTMLCanvasElement | null;
   if (container && canvas) {
-    new VioletMesh(container, canvas, "#a855f7");
+    new VioletMesh(container, canvas, "#000000");
   }
 });
