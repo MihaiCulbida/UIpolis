@@ -294,13 +294,13 @@ function mountFlowShader(canvas) {
   const gl = canvas.getContext("webgl", { antialias: false });
   if (!gl) return () => {};
 
-  const compile = (type, src) => {
-    const s = gl.createShader(type)!;
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    return s;
-  };
-  const program = gl.createProgram()!;
+const compile = (type, src) => {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+};
+const program = gl.createProgram();
   const vertexShader = compile(gl.VERTEX_SHADER, VERTEX_SRC);
   const fragmentShader = compile(gl.FRAGMENT_SHADER, FRAGMENT_SRC);
   gl.attachShader(program, vertexShader);
