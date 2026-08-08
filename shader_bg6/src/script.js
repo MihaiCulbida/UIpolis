@@ -159,10 +159,13 @@ vec3 hueRotate(vec3 col, float a) {
 }
 
 vec3 shade(vec2 uv, vec2 p, float t) {
-  float a = fbm(p * 2.0 + u_seed) * 6.2831;
-  vec2 dir = vec2(cos(a), sin(a));
-  float v = fbm(p * 3.0 + dir * (u_intensity * 2.0) + t * 0.12);
-  return palette(v);
+  vec2 q = p * 1.6;
+  float amp = 0.25 + u_intensity * 0.85;
+  for (float i = 1.0; i < 5.0; i += 1.0) {
+    q.x += amp / i * cos(i * 2.4 * q.y + t * 0.8 + u_seed);
+    q.y += amp / i * cos(i * 1.7 * q.x + t * 0.6);
+  }
+  return palette(0.5 + 0.5 * sin(q.x + q.y));
 }
 
 void main() {
@@ -247,73 +250,85 @@ void main() {
 }
 `;
 
-const shaderConfig = {
+// Packed uniform values, exactly as specified for the "Silk" preset.
+const silkConfig = {
   colors: [
-    [0.08627450980392157, 0.043137254901960784, 0.043137254901960784],
-    [0.7607843137254902, 0.25098039215686274, 0.16470588235294117],
-    [0.9568627450980393, 0.615686274509804, 0.21568627450980393],
-    [1, 0.9098039215686274, 0.7607843137254902],
-    [1, 0.9098039215686274, 0.7607843137254902],
-    [1, 0.9098039215686274, 0.7607843137254902],
-    [1, 0.9098039215686274, 0.7607843137254902],
-    [1, 0.9098039215686274, 0.7607843137254902],
+    [0.008, 0.004, 0.039],
+    [0.016, 0.020, 0.180],
+    [0.239, 0.173, 0.553],
+    [0.569, 0.420, 0.749],
+    [0.569, 0.420, 0.749],
+    [0.569, 0.420, 0.749],
+    [0.569, 0.420, 0.749],
+    [0.569, 0.420, 0.749],
   ],
-  colorCount: 4,
-  scale: 1.5,
-  intensity: 0.48,
+  colorCount: 4.0,
+  timeScale: 0.76,
+  // u_shape: scale, intensity, paramA, warp
+  scale: 1.26,
+  intensity: 0.28,
   paramA: 0.5,
   warp: 0.0,
+  // u_surface: detail, contrast, brightness, saturation
   detail: 2.4,
-  contrast: 0.924,
-  brightness: -0.5,
+  contrast: 1.11,
+  brightness: 0.0,
   saturation: 1.0,
-  hue: 3.0369,
-  vignette: 0.61,
-  blur: 0.016,
-  grain: 0.35,
-  seed: 7.0,
+  // u_finish: hue, vignette, blur, grain
+  hue: 0.0,
+  vignette: 0.0,
+  blur: 0.0,
+  grain: 0.05,
+  // u_transform: seed, rotate, drift, oklab
+  seed: 1581.0,
   rotate: 0.0,
+  drift: 0.0,
+  oklab: 0.0,
+  // u_space: offset.xy (pointer fed in at render time)
   offsetX: 0.0,
   offsetY: 0.0,
-  drift: 0.156,
+  // u_cursor: presence (runtime), effect, strength, radius
   cursorEnabled: false,
-  cursorEffect: 4.0,
+  cursorEffect: 2.0,
   cursorStrength: 0.65,
-  cursorRadius: 0.297,
-  oklab: 0.0,
-  timeScale: 0.86,
+  cursorRadius: 0.46,
 };
 
 const pendingContextReleases = new WeakMap();
 
-function mountFlowShader(canvas) {
+function mountSilkShader(canvas) {
   const pendingRelease = pendingContextReleases.get(canvas);
   if (pendingRelease !== undefined) window.clearTimeout(pendingRelease);
   pendingContextReleases.delete(canvas);
 
   const gl = canvas.getContext("webgl", { antialias: false });
   if (!gl) {
-    console.error("Shader background: WebGL is not available in this browser.");
+    console.error("Silk shader: WebGL is not available in this browser.");
     return () => {};
   }
 
   const compile = (type, src) => {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
       console.error(
-        "Shader background: failed to compile " +
+        "Silk shader: failed to compile " +
           (type === gl.VERTEX_SHADER ? "vertex" : "fragment") +
           " shader:\n" +
-          gl.getShaderInfoLog(s)
+          gl.getShaderInfoLog(shader)
       );
+      gl.deleteShader(shader);
+      return null;
     }
-    return s;
+    return shader;
   };
-  const program = gl.createProgram();
+
   const vertexShader = compile(gl.VERTEX_SHADER, VERTEX_SRC);
   const fragmentShader = compile(gl.FRAGMENT_SHADER, FRAGMENT_SRC);
+  if (!vertexShader || !fragmentShader) return () => {};
+
+  const program = gl.createProgram();
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
@@ -321,7 +336,8 @@ function mountFlowShader(canvas) {
   gl.deleteShader(fragmentShader);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error("Shader background: failed to link program:\n" + gl.getProgramInfoLog(program));
+    console.error("Silk shader: failed to link program:\n" + gl.getProgramInfoLog(program));
+    gl.deleteProgram(program);
     return () => {};
   }
 
@@ -349,12 +365,12 @@ function mountFlowShader(canvas) {
     cursor: gl.getUniformLocation(program, "u_cursor"),
   };
 
-  gl.uniform3fv(uni.colors, new Float32Array(shaderConfig.colors.flat()));
-  gl.uniform4f(uni.shape, shaderConfig.scale, shaderConfig.intensity, shaderConfig.paramA, shaderConfig.warp);
-  gl.uniform4f(uni.surface, shaderConfig.detail, shaderConfig.contrast, shaderConfig.brightness, shaderConfig.saturation);
-  gl.uniform4f(uni.finish, shaderConfig.hue, shaderConfig.vignette, shaderConfig.blur, shaderConfig.grain);
-  gl.uniform4f(uni.transform, shaderConfig.seed, shaderConfig.rotate, shaderConfig.drift, shaderConfig.oklab);
-  gl.uniform4f(uni.cursor, 0, shaderConfig.cursorEffect, shaderConfig.cursorStrength, shaderConfig.cursorRadius);
+  gl.uniform3fv(uni.colors, new Float32Array(silkConfig.colors.flat()));
+  gl.uniform4f(uni.shape, silkConfig.scale, silkConfig.intensity, silkConfig.paramA, silkConfig.warp);
+  gl.uniform4f(uni.surface, silkConfig.detail, silkConfig.contrast, silkConfig.brightness, silkConfig.saturation);
+  gl.uniform4f(uni.finish, silkConfig.hue, silkConfig.vignette, silkConfig.blur, silkConfig.grain);
+  gl.uniform4f(uni.transform, silkConfig.seed, silkConfig.rotate, silkConfig.drift, silkConfig.oklab);
+  gl.uniform4f(uni.cursor, 0, silkConfig.cursorEffect, silkConfig.cursorStrength, silkConfig.cursorRadius);
 
   let targetX = 0;
   let targetY = 0;
@@ -372,13 +388,13 @@ function mountFlowShader(canvas) {
   let inView = true;
   let disposed = false;
   const start = performance.now();
-  const timeAnimated = Math.abs(shaderConfig.timeScale) > 0.0001;
+  const timeAnimated = Math.abs(silkConfig.timeScale) > 0.0001;
 
   const resizeCanvas = () => {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const rawWidth = Math.max(1, Math.round(bounds.width * dpr));
     const rawHeight = Math.max(1, Math.round(bounds.height * dpr));
-    const pixelScale = Math.min(1, Math.sqrt(2000000 / Math.max(1, rawWidth * rawHeight)));
+    const pixelScale = Math.min(1, Math.sqrt(2_000_000 / Math.max(1, rawWidth * rawHeight)));
     const width = Math.max(1, Math.round(rawWidth * pixelScale));
     const height = Math.max(1, Math.round(rawHeight * pixelScale));
     if (canvas.width !== width || canvas.height !== height) {
@@ -439,7 +455,7 @@ function mountFlowShader(canvas) {
   };
 
   window.addEventListener("resize", updateLayout);
-  if (shaderConfig.cursorEnabled) {
+  if (silkConfig.cursorEnabled) {
     window.addEventListener("pointermove", onPointerMove, { passive: true });
     window.addEventListener("pointercancel", onPointerLeave);
     window.addEventListener("scroll", updateLayout, true);
@@ -483,9 +499,9 @@ function mountFlowShader(canvas) {
     resizeCanvas();
     const width = canvas.width;
     const height = canvas.height;
-    gl.uniform4f(uni.scene, width, height, ((now - start) / 1000) * shaderConfig.timeScale, shaderConfig.colorCount);
-    gl.uniform4f(uni.space, shaderConfig.offsetX, shaderConfig.offsetY, mouseX, mouseY);
-    gl.uniform4f(uni.cursor, shaderConfig.cursorEnabled ? cursorPresence : 0, shaderConfig.cursorEffect, shaderConfig.cursorStrength, shaderConfig.cursorRadius);
+    gl.uniform4f(uni.scene, width, height, ((now - start) / 1000) * silkConfig.timeScale, silkConfig.colorCount);
+    gl.uniform4f(uni.space, silkConfig.offsetX, silkConfig.offsetY, mouseX, mouseY);
+    gl.uniform4f(uni.cursor, silkConfig.cursorEnabled ? cursorPresence : 0, silkConfig.cursorEffect, silkConfig.cursorStrength, silkConfig.cursorRadius);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     const pointerSettling =
       Math.abs(targetX - mouseX) > 0.001 ||
@@ -504,7 +520,7 @@ function mountFlowShader(canvas) {
     intersectionObserver.disconnect();
     document.removeEventListener("visibilitychange", onVisibilityChange);
     window.removeEventListener("resize", updateLayout);
-    if (shaderConfig.cursorEnabled) {
+    if (silkConfig.cursorEnabled) {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointercancel", onPointerLeave);
       window.removeEventListener("scroll", updateLayout, true);
@@ -527,5 +543,5 @@ function mountFlowShader(canvas) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("silk-canvas");
-  if (canvas) mountFlowShader(canvas);
+  if (canvas) mountSilkShader(canvas);
 });
