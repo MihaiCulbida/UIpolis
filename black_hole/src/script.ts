@@ -1,95 +1,86 @@
+"use strict";
+
+type ScrimSide = "none" | "left" | "right" | "top" | "bottom";
+
 interface BlackHoleConfig {
-  distance: number;
-  elevation: number;
-  azimuth: number;
-  orbitSpeed: number;
-  roll: number;
-  fov: number;
-  diskInner: number;
-  diskOuter: number;
-  diskThickness: number;
-  diskDensity: number;
-  brightness: number;
-  spinSpeed: number;
-  grain: number;
-  doppler: number;
-  hotColor: string;
-  midColor: string;
-  coolColor: string;
-  starBrightness: number;
-  glow: number;
-  exposure: number;
-  vignette: number;
-  steps: number;
-  resolution: number;
-  maxDpr: number;
-  focus: [number, number];
-  scrim: "none" | "left" | "right" | "top" | "bottom";
-  scrimStrength: number;
-  paused: boolean;
-}
-
-type GLContext = WebGL2RenderingContext | WebGLRenderingContext;
-
-interface Prog {
-  program: WebGLProgram;
-  u: Record<string, WebGLUniformLocation | null>;
-}
-
-interface Target {
-  fb: WebGLFramebuffer;
-  tex: WebGLTexture;
-  w: number;
-  h: number;
+    distance: number;
+    elevation: number;
+    azimuth: number;
+    orbitSpeed: number;
+    roll: number;
+    fov: number;
+    diskInner: number;
+    diskOuter: number;
+    diskThickness: number;
+    diskDensity: number;
+    brightness: number;
+    spinSpeed: number;
+    grain: number;
+    doppler: number;
+    hotColor: string;
+    midColor: string;
+    coolColor: string;
+    starBrightness: number;
+    glow: number;
+    exposure: number;
+    vignette: number;
+    steps: number;
+    resolution: number;
+    maxDpr: number;
+    focus: [number, number];
+    scrim: ScrimSide;
+    scrimStrength: number;
+    paused: boolean;
 }
 
 (function () {
-  const CONFIG: BlackHoleConfig = {
-    distance: 30,
-    elevation: -5.5,
-    azimuth: 0,
-    orbitSpeed: 0,
-    roll: -20,
-    fov: 42,
-    diskInner: 3,
-    diskOuter: 15,
-    diskThickness: 0.26,
-    diskDensity: 1,
-    brightness: 1,
-    spinSpeed: 0.06,
-    grain: 0.48,
-    doppler: 0.35,
-    hotColor: "#FFF3DE",
-    midColor: "#FF9838",
-    coolColor: "#8E3A0B",
-    starBrightness: 0,
-    glow: 1,
-    exposure: 0.9,
-    vignette: 0.28,
-    steps: 300,
-    resolution: 0.7,
-    maxDpr: 1.75,
-    focus: [0.68, 0.45],
-    scrim: "none",
-    scrimStrength: 0.9,
-    paused: false,
-  };
+    const CONFIG: BlackHoleConfig = {
+        distance: 30,
+        elevation: -5.5,
+        azimuth: 0,
+        orbitSpeed: 0,
+        roll: -20,
+        fov: 42,
+        diskInner: 3,
+        diskOuter: 15,
+        diskThickness: 0.26,
+        diskDensity: 1,
+        brightness: 1,
+        spinSpeed: 0.32,
+        grain: 0.58,
+        doppler: 0.35,
+        hotColor: "#FFF3DE",
+        midColor: "#FF9838",
+        coolColor: "#8E3A0B",
+        starBrightness: 0,
+        glow: 1,
+        exposure: 0.9,
+        vignette: 0.28,
+        steps: 300,
+        resolution: 0.7,
+        maxDpr: 1.75,
+        focus: [0.68, 0.45],
+        scrim: "none",
+        scrimStrength: 0.9,
+        paused: false,
+    };
 
-  const NARROW_QUERY = "(max-width: 767px)";
-  function applyResponsiveConfig(): void {
-    const narrow = window.matchMedia(NARROW_QUERY).matches;
-    CONFIG.elevation = narrow ? -7 : -5.5;
-    CONFIG.fov = narrow ? 58 : 42;
-    CONFIG.glow = narrow ? 0.85 : 1;
-    CONFIG.steps = narrow ? 200 : 300;
-    CONFIG.resolution = narrow ? 0.6 : 0.7;
-  }
-  applyResponsiveConfig();
-  window.matchMedia(NARROW_QUERY).addEventListener("change", applyResponsiveConfig);
+    const NARROW_QUERY = "(max-width: 767px)";
 
-  const RAD = Math.PI / 180;
+    function applyResponsiveConfig(): void {
+        const narrow = window.matchMedia(NARROW_QUERY).matches;
+        CONFIG.elevation = narrow ? -7 : -5.5;
+        CONFIG.fov = narrow ? 58 : 42;
+        CONFIG.glow = narrow ? 0.85 : 1;
+        CONFIG.steps = narrow ? 200 : 300;
+        CONFIG.resolution = narrow ? 0.6 : 0.7;
+    }
+    applyResponsiveConfig();
+    window.matchMedia(NARROW_QUERY).addEventListener("change", applyResponsiveConfig);
 
-  const VERT = `
+    const RAD = Math.PI / 180;
+
+    const VERT = `
 attribute vec2 aPos;
 varying vec2 vUv;
 void main() {
@@ -98,11 +89,10 @@ void main() {
 }
 `;
 
-  const SCENE_FRAG = `
+    const SCENE_FRAG = `
 precision highp float;
 
 #define MAX_STEPS 460
-#define WIND_CYCLE 46.0
 
 varying vec2 vUv;
 
@@ -181,16 +171,8 @@ void gasAt(vec3 p, float rd, float dt, out float dens, out vec3 tint, out float 
   float omega = uSpin * pow(uDiskIn / rd, 1.5);
   float lr = log(rd) * 1.1 + uSpin * uTime * 0.05;
 
-  float u = uTime / WIND_CYCLE;
-  float fA = fract(u);
-  float fB = fract(u + 0.5);
-  float w = abs(2.0 * fA - 1.0);
-
-  float cloudsA = fbm(vec3(vec2(cos(phi + omega * fA * WIND_CYCLE),
-                                sin(phi + omega * fA * WIND_CYCLE)) * (rd * uGrain), lr), lod);
-  float cloudsB = fbm(vec3(vec2(cos(phi + omega * fB * WIND_CYCLE),
-                                sin(phi + omega * fB * WIND_CYCLE)) * (rd * uGrain), lr + 40.0), lod);
-  float clouds = mix(cloudsA, cloudsB, w);
+  float rotAngle = phi + omega * uTime;
+  float clouds = fbm(vec3(vec2(cos(rotAngle), sin(rotAngle)) * (rd * uGrain), lr), lod);
 
   float filaments = clouds * clouds * 1.75;
 
@@ -322,7 +304,7 @@ void main() {
 }
 `;
 
-  const BLEND_FRAG = `
+    const BLEND_FRAG = `
 precision highp float;
 varying vec2 vUv;
 uniform sampler2D uCur;
@@ -336,7 +318,7 @@ void main() {
 }
 `;
 
-  const BRIGHT_FRAG = `
+    const BRIGHT_FRAG = `
 precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTex;
@@ -358,7 +340,7 @@ void main() {
 }
 `;
 
-  const BLUR_FRAG = `
+    const BLUR_FRAG = `
 precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTex;
@@ -374,7 +356,7 @@ void main() {
 }
 `;
 
-  const COMPOSITE_FRAG = `
+    const COMPOSITE_FRAG = `
 precision highp float;
 varying vec2 vUv;
 uniform sampler2D uScene;
@@ -420,415 +402,439 @@ void main() {
 }
 `;
 
-  function hexToLinear(hex: string): [number, number, number] {
-    const h = hex.trim().replace("#", "");
-    const full = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h.slice(0, 6);
-    const n = parseInt(full, 16);
-    const srgb = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-    return srgb.map((v) =>
-      v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
-    ) as [number, number, number];
-  }
-
-  function initBlackHole(host: HTMLDivElement, canvas: HTMLCanvasElement): void {
-    const reduced =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const opts: WebGLContextAttributes = {
-      alpha: false,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: "high-performance",
-      preserveDrawingBuffer: false,
-    };
-    const gl = (canvas.getContext("webgl2", opts) || canvas.getContext("webgl", opts)) as GLContext | null;
-
-    function giveUp(why: string): void {
-      host.dataset.webgl = why;
-      canvas.style.display = "none";
+    function hexToLinear(hex: string): [number, number, number] {
+        const h = hex.trim().replace("#", "");
+        const full = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h.slice(0, 6);
+        const n = parseInt(full, 16);
+        const srgb = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+        return srgb.map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))) as [number, number, number];
     }
 
-    if (!gl) {
-      giveUp("unsupported");
-      return;
+    type GLContext = WebGL2RenderingContext | WebGLRenderingContext;
+
+    interface LinkedProgram {
+        program: WebGLProgram;
+        u: Record<string, WebGLUniformLocation | null>;
     }
 
-    const dbg = gl.getExtension("WEBGL_debug_renderer_info");
-    const renderer = dbg ? String(gl.getParameter((dbg as any).UNMASKED_RENDERER_WEBGL) || "") : "";
-    const software = /swiftshader|llvmpipe|softpipe|software|microsoft basic/i.test(renderer);
-    const isGL2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
-
-    function compile(type: number, src: string): WebGLShader | null {
-      const sh = gl!.createShader(type);
-      if (!sh) return null;
-      gl!.shaderSource(sh, src);
-      gl!.compileShader(sh);
-      if (!gl!.getShaderParameter(sh, gl!.COMPILE_STATUS)) {
-        console.error("blackhole: shader failed —", gl!.getShaderInfoLog(sh) || "no log (context lost?)");
-        gl!.deleteShader(sh);
-        return null;
-      }
-      return sh;
+    interface RenderTarget {
+        fb: WebGLFramebuffer;
+        tex: WebGLTexture;
+        w: number;
+        h: number;
     }
 
-    function link(fragSrc: string): Prog | null {
-      const vs = compile(gl!.VERTEX_SHADER, VERT);
-      const fs = compile(gl!.FRAGMENT_SHADER, fragSrc);
-      if (!vs || !fs) return null;
-      const program = gl!.createProgram();
-      if (!program) return null;
-      gl!.attachShader(program, vs);
-      gl!.attachShader(program, fs);
-      gl!.bindAttribLocation(program, 0, "aPos");
-      gl!.linkProgram(program);
-      gl!.deleteShader(vs);
-      gl!.deleteShader(fs);
-      if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
-        console.error(gl!.getProgramInfoLog(program));
-        return null;
-      }
-      const u: Record<string, WebGLUniformLocation | null> = {};
-      const n = gl!.getProgramParameter(program, gl!.ACTIVE_UNIFORMS) as number;
-      for (let i = 0; i < n; i++) {
-        const info = gl!.getActiveUniform(program, i);
-        if (info) u[info.name] = gl!.getUniformLocation(program, info.name);
-      }
-      return { program, u };
+    function initBlackHole(host: HTMLElement, canvas: HTMLCanvasElement): void {
+        const reduced =
+            typeof window.matchMedia === "function" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        const opts: WebGLContextAttributes = {
+            alpha: false,
+            antialias: false,
+            depth: false,
+            stencil: false,
+            powerPreference: "high-performance",
+            preserveDrawingBuffer: false,
+        };
+
+        const gl: GLContext | null =
+            (canvas.getContext("webgl2", opts) as WebGL2RenderingContext | null) ||
+            (canvas.getContext("webgl", opts) as WebGLRenderingContext | null);
+
+        function giveUp(why: string): void {
+            host.dataset.webgl = why;
+            canvas.style.display = "none";
+        }
+
+        if (!gl) {
+            giveUp("unsupported");
+            return;
+        }
+
+        const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+        const renderer = dbg ? String(gl.getParameter((dbg as WEBGL_debug_renderer_info).UNMASKED_RENDERER_WEBGL) || "") : "";
+        const software = /swiftshader|llvmpipe|softpipe|software|microsoft basic/i.test(renderer);
+        const isGL2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+
+        function compile(type: number, src: string): WebGLShader | null {
+            const sh = gl!.createShader(type);
+            if (!sh) return null;
+            gl!.shaderSource(sh, src);
+            gl!.compileShader(sh);
+            if (!gl!.getShaderParameter(sh, gl!.COMPILE_STATUS)) {
+                console.error("blackhole: shader failed —", gl!.getShaderInfoLog(sh) || "no log (context lost?)");
+                gl!.deleteShader(sh);
+                return null;
+            }
+            return sh;
+        }
+
+        function link(fragSrc: string): LinkedProgram | null {
+            const vs = compile(gl!.VERTEX_SHADER, VERT);
+            const fs = compile(gl!.FRAGMENT_SHADER, fragSrc);
+            if (!vs || !fs) return null;
+            const program = gl!.createProgram();
+            if (!program) return null;
+            gl!.attachShader(program, vs);
+            gl!.attachShader(program, fs);
+            gl!.bindAttribLocation(program, 0, "aPos");
+            gl!.linkProgram(program);
+            gl!.deleteShader(vs);
+            gl!.deleteShader(fs);
+            if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
+                console.error(gl!.getProgramInfoLog(program));
+                return null;
+            }
+            const u: Record<string, WebGLUniformLocation | null> = {};
+            const n = gl!.getProgramParameter(program, gl!.ACTIVE_UNIFORMS) as number;
+            for (let i = 0; i < n; i++) {
+                const info = gl!.getActiveUniform(program, i);
+                if (info) u[info.name] = gl!.getUniformLocation(program, info.name);
+            }
+            return { program, u };
+        }
+
+        let hdr = true;
+        let texType: number = gl.UNSIGNED_BYTE;
+        let internal: number = gl.RGBA;
+
+        if (isGL2) {
+            const g2 = gl as WebGL2RenderingContext;
+            const ok = g2.getExtension("EXT_color_buffer_half_float") || g2.getExtension("EXT_color_buffer_float");
+            if (ok) {
+                texType = g2.HALF_FLOAT;
+                internal = g2.RGBA16F;
+            } else hdr = false;
+        } else {
+            const hf = gl.getExtension("OES_texture_half_float");
+            const cb = gl.getExtension("EXT_color_buffer_half_float");
+            if (hf && cb) texType = hf.HALF_FLOAT_OES;
+            else hdr = false;
+        }
+
+        if (!hdr) {
+            texType = gl.UNSIGNED_BYTE;
+            internal = gl.RGBA;
+        }
+
+        const linearOK = isGL2 || !!gl.getExtension("OES_texture_half_float_linear") || !hdr;
+        const filter = linearOK ? gl.LINEAR : gl.NEAREST;
+        const pack = hdr ? 1 : 0.12;
+
+        function makeTarget(w: number, h: number): RenderTarget | null {
+            const tex = gl!.createTexture();
+            const fb = gl!.createFramebuffer();
+            if (!tex || !fb) return null;
+            gl!.bindTexture(gl!.TEXTURE_2D, tex);
+            gl!.texImage2D(gl!.TEXTURE_2D, 0, internal, w, h, 0, gl!.RGBA, texType, null);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, filter);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, filter);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
+            gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
+            gl!.bindFramebuffer(gl!.FRAMEBUFFER, fb);
+            gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_2D, tex, 0);
+            const status = gl!.checkFramebufferStatus(gl!.FRAMEBUFFER);
+            gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
+            if (status !== gl!.FRAMEBUFFER_COMPLETE) {
+                gl!.deleteTexture(tex);
+                gl!.deleteFramebuffer(fb);
+                return null;
+            }
+            return { fb, tex, w, h };
+        }
+
+        let sceneProg: LinkedProgram | null = null;
+        let blendProg: LinkedProgram | null = null;
+        let brightProg: LinkedProgram | null = null;
+        let blurProg: LinkedProgram | null = null;
+        let compProg: LinkedProgram | null = null;
+        let vbo: WebGLBuffer | null = null;
+
+        let scene: RenderTarget | null = null;
+        let histA: RenderTarget | null = null;
+        let histB: RenderTarget | null = null;
+        let bloomA: RenderTarget | null = null;
+        let bloomB: RenderTarget | null = null;
+
+        let settled = 0;
+        let width = 0;
+        let height = 0;
+        let sceneW = 0;
+        let sceneH = 0;
+
+        function build(): boolean {
+            sceneProg = link(SCENE_FRAG);
+            blendProg = link(BLEND_FRAG);
+            brightProg = link(BRIGHT_FRAG);
+            blurProg = link(BLUR_FRAG);
+            compProg = link(COMPOSITE_FRAG);
+            if (!sceneProg || !blendProg || !brightProg || !blurProg || !compProg) return false;
+            vbo = gl!.createBuffer();
+            gl!.bindBuffer(gl!.ARRAY_BUFFER, vbo);
+            gl!.bufferData(gl!.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl!.STATIC_DRAW);
+            gl!.enableVertexAttribArray(0);
+            gl!.vertexAttribPointer(0, 2, gl!.FLOAT, false, 0, 0);
+            gl!.disable(gl!.DEPTH_TEST);
+            gl!.disable(gl!.BLEND);
+            return true;
+        }
+
+        function dropTargets(): void {
+            for (const t of [scene, histA, histB, bloomA, bloomB]) {
+                if (!t) continue;
+                gl!.deleteTexture(t.tex);
+                gl!.deleteFramebuffer(t.fb);
+            }
+            scene = null;
+            histA = null;
+            histB = null;
+            bloomA = null;
+            bloomB = null;
+            settled = 0;
+        }
+
+        function resize(): void {
+            const rect = host.getBoundingClientRect();
+            const dpr = software ? 1 : Math.min(window.devicePixelRatio || 1, Math.max(1, CONFIG.maxDpr));
+            const cssW = Math.max(1, Math.round(rect.width));
+            const cssH = Math.max(1, Math.round(rect.height));
+            const scale = software ? 0.34 : Math.min(1, Math.max(0.4, CONFIG.resolution));
+            const w = Math.max(2, Math.round(cssW * dpr));
+            const h = Math.max(2, Math.round(cssH * dpr));
+            const sw = Math.max(2, Math.round(w * scale));
+            const sh = Math.max(2, Math.round(h * scale));
+            if (w === width && h === height && sw === sceneW && sh === sceneH) return;
+            width = w;
+            height = h;
+            sceneW = sw;
+            sceneH = sh;
+            canvas.width = w;
+            canvas.height = h;
+            canvas.style.width = cssW + "px";
+            canvas.style.height = cssH + "px";
+            dropTargets();
+            scene = makeTarget(sw, sh);
+            histA = makeTarget(sw, sh);
+            histB = makeTarget(sw, sh);
+            const bw = Math.max(2, sw >> 2);
+            const bh = Math.max(2, sh >> 2);
+            bloomA = makeTarget(bw, bh);
+            bloomB = makeTarget(bw, bh);
+        }
+
+        let clock = reduced ? 6 : 0;
+        let lastFrame = 0;
+        let running = true;
+        let visible = true;
+        let raf = 0;
+
+        function pass(prog: LinkedProgram, target: RenderTarget | null): void {
+            gl!.useProgram(prog.program);
+            gl!.bindFramebuffer(gl!.FRAMEBUFFER, target ? target.fb : null);
+            gl!.viewport(0, 0, target ? target.w : width, target ? target.h : height);
+        }
+
+        function draw(): void {
+            gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+        }
+
+        function bind(tex: WebGLTexture, unit: number): void {
+            gl!.activeTexture(gl!.TEXTURE0 + unit);
+            gl!.bindTexture(gl!.TEXTURE_2D, tex);
+        }
+
+        const HALTON: [number, number][] = [
+            [0.5, 0.333], [0.25, 0.667], [0.75, 0.111], [0.125, 0.444],
+            [0.625, 0.778], [0.375, 0.222], [0.875, 0.556], [0.0625, 0.889],
+        ];
+
+        function render(t: number): void {
+            if (!sceneProg || !blendProg || !brightProg || !blurProg || !compProg) return;
+            if (!scene || !histA || !histB || !bloomA || !bloomB) return;
+
+            const C = CONFIG;
+            const az = (C.azimuth + C.orbitSpeed * t) * RAD;
+            const el = Math.max(-88, Math.min(88, C.elevation)) * RAD;
+            const dist = Math.max(2.2, C.distance);
+            const ce = Math.cos(el);
+            const camX = dist * ce * Math.cos(az);
+            const camY = dist * Math.sin(el);
+            const camZ = dist * ce * Math.sin(az);
+            const fx = -camX / dist, fy = -camY / dist, fz = -camZ / dist;
+            let rx = fz, ry = 0, rz = -fx;
+            const rl = Math.hypot(rx, ry, rz) || 1;
+            rx /= rl;
+            ry /= rl;
+            rz /= rl;
+            let ux = ry * fz - rz * fy;
+            let uy = rz * fx - rx * fz;
+            let uz = rx * fy - ry * fx;
+            const cr = Math.cos(C.roll * RAD);
+            const sr = Math.sin(C.roll * RAD);
+            const RX = rx * cr + ux * sr, RY = ry * cr + uy * sr, RZ = rz * cr + uz * sr;
+            const UX = -rx * sr + ux * cr, UY = -ry * sr + uy * cr, UZ = -rz * sr + uz * cr;
+            const hot = hexToLinear(C.hotColor);
+            const mid = hexToLinear(C.midColor);
+            const cool = hexToLinear(C.coolColor);
+            const outer = Math.max(C.diskInner + 0.5, C.diskOuter);
+
+            pass(sceneProg, scene);
+            const u = sceneProg.u;
+            gl!.uniform2f(u.uRes, scene.w, scene.h);
+            gl!.uniform1f(u.uTime, t);
+            gl!.uniform3f(u.uCamPos, camX, camY, camZ);
+            gl!.uniform3f(u.uRight, RX, RY, RZ);
+            gl!.uniform3f(u.uUp, UX, UY, UZ);
+            gl!.uniform3f(u.uFwd, fx, fy, fz);
+            gl!.uniform1f(u.uTanHalf, Math.tan(Math.max(8, Math.min(110, C.fov)) * 0.5 * RAD));
+            gl!.uniform2f(u.uFocus, C.focus[0], 1 - C.focus[1]);
+            gl!.uniform1f(u.uSteps, software ? 130 : Math.max(60, Math.min(460, Math.round(C.steps))));
+            gl!.uniform1f(u.uSkyR, Math.max(dist * 1.35, outer * 2.4));
+            gl!.uniform1f(u.uDiskIn, Math.max(1.05, C.diskInner));
+            gl!.uniform1f(u.uDiskOut, outer);
+            gl!.uniform1f(u.uThick, Math.max(0.02, C.diskThickness));
+            gl!.uniform1f(u.uDensity, Math.max(0, C.diskDensity));
+            gl!.uniform1f(u.uSpin, C.spinSpeed * 6.2831853);
+            gl!.uniform1f(u.uGrain, Math.max(0.02, C.grain));
+            gl!.uniform1f(u.uBright, Math.max(0, C.brightness));
+            gl!.uniform1f(u.uDoppler, Math.max(0, Math.min(1, C.doppler)));
+            gl!.uniform3f(u.uHot, hot[0], hot[1], hot[2]);
+            gl!.uniform3f(u.uMid, mid[0], mid[1], mid[2]);
+            gl!.uniform3f(u.uCool, cool[0], cool[1], cool[2]);
+            gl!.uniform1f(u.uStars, Math.max(0, C.starBrightness));
+            gl!.uniform1f(u.uEncode, hdr ? 0 : 1);
+            const h = HALTON[settled % HALTON.length];
+            gl!.uniform2f(u.uJitter, h[0] - 0.5, h[1] - 0.5);
+            gl!.uniform1f(u.uSeed, (settled % 64) * 17.13);
+            draw();
+
+            const alpha = settled === 0 ? 1 : 0.14;
+            pass(blendProg, histB);
+            bind(scene.tex, 0);
+            bind(histA.tex, 1);
+            gl!.uniform1i(blendProg.u.uCur, 0);
+            gl!.uniform1i(blendProg.u.uPrev, 1);
+            gl!.uniform1f(blendProg.u.uAlpha, alpha);
+            draw();
+
+            const shown = histB;
+            const tmp = histA;
+            histA = histB;
+            histB = tmp;
+            settled++;
+
+            pass(brightProg, bloomA);
+            bind(shown.tex, 0);
+            gl!.uniform1i(brightProg.u.uTex, 0);
+            gl!.uniform2f(brightProg.u.uTexel, 1 / shown.w, 1 / shown.h);
+            gl!.uniform1f(brightProg.u.uDecode, hdr ? 0 : 1);
+            gl!.uniform1f(brightProg.u.uPack, pack);
+            gl!.uniform1f(brightProg.u.uThreshold, 0.85);
+            draw();
+
+            const blurStep = (src: RenderTarget, dst: RenderTarget, dx: number, dy: number): void => {
+                pass(blurProg!, dst);
+                bind(src.tex, 0);
+                gl!.uniform1i(blurProg!.u.uTex, 0);
+                gl!.uniform2f(blurProg!.u.uStep, dx / dst.w, dy / dst.h);
+                draw();
+            };
+            blurStep(bloomA, bloomB, 1, 0);
+            blurStep(bloomB, bloomA, 0, 1);
+            blurStep(bloomA, bloomB, 2.6, 0);
+            blurStep(bloomB, bloomA, 0, 2.6);
+
+            pass(compProg, null);
+            bind(shown.tex, 0);
+            bind(bloomA.tex, 1);
+            gl!.uniform1i(compProg.u.uScene, 0);
+            gl!.uniform1i(compProg.u.uBloom, 1);
+            gl!.uniform2f(compProg.u.uRes, width, height);
+            gl!.uniform1f(compProg.u.uDecode, hdr ? 0 : 1);
+            gl!.uniform1f(compProg.u.uPack, pack);
+            gl!.uniform1f(compProg.u.uGlow, Math.max(0, C.glow) * 0.26);
+            gl!.uniform1f(compProg.u.uExposure, Math.max(0.05, C.exposure));
+            gl!.uniform1f(compProg.u.uVignette, Math.max(0, Math.min(1, C.vignette)));
+            gl!.uniform1f(
+                compProg.u.uScrimDir,
+                C.scrim === "left" ? 1 : C.scrim === "right" ? 2 : C.scrim === "top" ? 3 : C.scrim === "bottom" ? 4 : 0
+            );
+            gl!.uniform1f(compProg.u.uScrimAmt, Math.max(0, Math.min(1, C.scrimStrength)));
+            gl!.uniform1f(compProg.u.uSeed, (t * 60) % 1000);
+            draw();
+        }
+
+        function settle(passes: number): void {
+            for (let i = 0; i < passes; i++) render(clock);
+        }
+
+        function tick(now: number): void {
+            if (!running) return;
+            raf = requestAnimationFrame(tick);
+            if (!visible) {
+                lastFrame = now;
+                return;
+            }
+            const dt = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
+            lastFrame = now;
+            if (!CONFIG.paused && !reduced) clock += dt;
+            render(clock);
+        }
+
+        if (!build()) {
+            giveUp("build-failed");
+            return;
+        }
+        resize();
+        settle(reduced ? 16 : 1);
+        if (!reduced) raf = requestAnimationFrame(tick);
+
+        const ro = new ResizeObserver(() => {
+            resize();
+            if (reduced || CONFIG.paused) settle(16);
+        });
+        ro.observe(host);
+
+        const io = new IntersectionObserver(
+            (entries) => {
+                visible = entries[0] ? entries[0].isIntersecting : true;
+            },
+            { threshold: 0 }
+        );
+        io.observe(host);
+
+        document.addEventListener("visibilitychange", () => {
+            visible = !document.hidden;
+            lastFrame = 0;
+        });
+
+        canvas.addEventListener("webglcontextlost", (e: Event) => {
+            e.preventDefault();
+            running = false;
+            cancelAnimationFrame(raf);
+            canvas.style.display = "none";
+        });
+
+        canvas.addEventListener("webglcontextrestored", () => {
+            width = height = sceneW = sceneH = 0;
+            if (!build()) {
+                giveUp("lost");
+                return;
+            }
+            canvas.style.display = "";
+            host.dataset.webgl = "";
+            resize();
+            running = true;
+            lastFrame = 0;
+            settle(reduced ? 16 : 1);
+            if (!reduced) raf = requestAnimationFrame(tick);
+        });
     }
 
-    let hdr = true;
-    let texType: number = gl.UNSIGNED_BYTE;
-    let internal: number = gl.RGBA;
-    if (isGL2) {
-      const g2 = gl as WebGL2RenderingContext;
-      const ok = g2.getExtension("EXT_color_buffer_half_float") || g2.getExtension("EXT_color_buffer_float");
-      if (ok) {
-        texType = g2.HALF_FLOAT;
-        internal = g2.RGBA16F;
-      } else hdr = false;
-    } else {
-      const hf = gl.getExtension("OES_texture_half_float");
-      const cb = gl.getExtension("EXT_color_buffer_half_float");
-      if (hf && cb) texType = (hf as any).HALF_FLOAT_OES;
-      else hdr = false;
-    }
-    if (!hdr) {
-      texType = gl.UNSIGNED_BYTE;
-      internal = gl.RGBA;
-    }
-    const linearOK = isGL2 || !!gl.getExtension("OES_texture_half_float_linear") || !hdr;
-    const filter = linearOK ? gl.LINEAR : gl.NEAREST;
-    const pack = hdr ? 1 : 0.12;
-
-    function makeTarget(w: number, h: number): Target | null {
-      const tex = gl!.createTexture();
-      const fb = gl!.createFramebuffer();
-      if (!tex || !fb) return null;
-      gl!.bindTexture(gl!.TEXTURE_2D, tex);
-      gl!.texImage2D(gl!.TEXTURE_2D, 0, internal, w, h, 0, gl!.RGBA, texType, null);
-      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, filter);
-      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, filter);
-      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
-      gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
-      gl!.bindFramebuffer(gl!.FRAMEBUFFER, fb);
-      gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_2D, tex, 0);
-      const status = gl!.checkFramebufferStatus(gl!.FRAMEBUFFER);
-      gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-      if (status !== gl!.FRAMEBUFFER_COMPLETE) {
-        gl!.deleteTexture(tex);
-        gl!.deleteFramebuffer(fb);
-        return null;
-      }
-      return { fb, tex, w, h };
-    }
-
-    let sceneProg: Prog | null = null;
-    let blendProg: Prog | null = null;
-    let brightProg: Prog | null = null;
-    let blurProg: Prog | null = null;
-    let compProg: Prog | null = null;
-    let vbo: WebGLBuffer | null = null;
-    let scene: Target | null = null;
-    let histA: Target | null = null;
-    let histB: Target | null = null;
-    let bloomA: Target | null = null;
-    let bloomB: Target | null = null;
-    let settled = 0;
-
-    let width = 0;
-    let height = 0;
-    let sceneW = 0;
-    let sceneH = 0;
-
-    function build(): boolean {
-      sceneProg = link(SCENE_FRAG);
-      blendProg = link(BLEND_FRAG);
-      brightProg = link(BRIGHT_FRAG);
-      blurProg = link(BLUR_FRAG);
-      compProg = link(COMPOSITE_FRAG);
-      if (!sceneProg || !blendProg || !brightProg || !blurProg || !compProg) return false;
-
-      vbo = gl!.createBuffer();
-      gl!.bindBuffer(gl!.ARRAY_BUFFER, vbo);
-      gl!.bufferData(gl!.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl!.STATIC_DRAW);
-      gl!.enableVertexAttribArray(0);
-      gl!.vertexAttribPointer(0, 2, gl!.FLOAT, false, 0, 0);
-      gl!.disable(gl!.DEPTH_TEST);
-      gl!.disable(gl!.BLEND);
-      return true;
-    }
-
-    function dropTargets(): void {
-      for (const t of [scene, histA, histB, bloomA, bloomB]) {
-        if (!t) continue;
-        gl!.deleteTexture(t.tex);
-        gl!.deleteFramebuffer(t.fb);
-      }
-      scene = null;
-      histA = null;
-      histB = null;
-      bloomA = null;
-      bloomB = null;
-      settled = 0;
-    }
-
-    function resize(): void {
-      const rect = host.getBoundingClientRect();
-      const dpr = software ? 1 : Math.min(window.devicePixelRatio || 1, Math.max(1, CONFIG.maxDpr));
-      const cssW = Math.max(1, Math.round(rect.width));
-      const cssH = Math.max(1, Math.round(rect.height));
-      const scale = software ? 0.34 : Math.min(1, Math.max(0.4, CONFIG.resolution));
-      const w = Math.max(2, Math.round(cssW * dpr));
-      const h = Math.max(2, Math.round(cssH * dpr));
-      const sw = Math.max(2, Math.round(w * scale));
-      const sh = Math.max(2, Math.round(h * scale));
-      if (w === width && h === height && sw === sceneW && sh === sceneH) return;
-      width = w;
-      height = h;
-      sceneW = sw;
-      sceneH = sh;
-      canvas.width = w;
-      canvas.height = h;
-      canvas.style.width = cssW + "px";
-      canvas.style.height = cssH + "px";
-      dropTargets();
-      scene = makeTarget(sw, sh);
-      histA = makeTarget(sw, sh);
-      histB = makeTarget(sw, sh);
-      const bw = Math.max(2, sw >> 2);
-      const bh = Math.max(2, sh >> 2);
-      bloomA = makeTarget(bw, bh);
-      bloomB = makeTarget(bw, bh);
-    }
-
-    let clock = reduced ? 6 : 0;
-    let lastFrame = 0;
-    let running = true;
-    let visible = true;
-    let raf = 0;
-
-    function pass(prog: Prog, target: Target | null): void {
-      gl!.useProgram(prog.program);
-      gl!.bindFramebuffer(gl!.FRAMEBUFFER, target ? target.fb : null);
-      gl!.viewport(0, 0, target ? target.w : width, target ? target.h : height);
-    }
-
-    function draw(): void {
-      gl!.drawArrays(gl!.TRIANGLES, 0, 3);
-    }
-
-    function bind(tex: WebGLTexture, unit: number): void {
-      gl!.activeTexture(gl!.TEXTURE0 + unit);
-      gl!.bindTexture(gl!.TEXTURE_2D, tex);
-    }
-
-    const HALTON: Array<[number, number]> = [
-      [0.5, 0.333], [0.25, 0.667], [0.75, 0.111], [0.125, 0.444],
-      [0.625, 0.778], [0.375, 0.222], [0.875, 0.556], [0.0625, 0.889],
-    ];
-
-    function render(t: number): void {
-      if (!sceneProg || !blendProg || !brightProg || !blurProg || !compProg) return;
-      if (!scene || !histA || !histB || !bloomA || !bloomB) return;
-      const C = CONFIG;
-
-      const az = (C.azimuth + C.orbitSpeed * t) * RAD;
-      const el = Math.max(-88, Math.min(88, C.elevation)) * RAD;
-      const dist = Math.max(2.2, C.distance);
-      const ce = Math.cos(el);
-      const camX = dist * ce * Math.cos(az);
-      const camY = dist * Math.sin(el);
-      const camZ = dist * ce * Math.sin(az);
-
-      const fx = -camX / dist, fy = -camY / dist, fz = -camZ / dist;
-      let rx = fz, ry = 0, rz = -fx;
-      const rl = Math.hypot(rx, ry, rz) || 1;
-      rx /= rl; ry /= rl; rz /= rl;
-      let ux = ry * fz - rz * fy;
-      let uy = rz * fx - rx * fz;
-      let uz = rx * fy - ry * fx;
-      const cr = Math.cos(C.roll * RAD);
-      const sr = Math.sin(C.roll * RAD);
-      const RX = rx * cr + ux * sr, RY = ry * cr + uy * sr, RZ = rz * cr + uz * sr;
-      const UX = -rx * sr + ux * cr, UY = -ry * sr + uy * cr, UZ = -rz * sr + uz * cr;
-
-      const hot = hexToLinear(C.hotColor);
-      const mid = hexToLinear(C.midColor);
-      const cool = hexToLinear(C.coolColor);
-      const outer = Math.max(C.diskInner + 0.5, C.diskOuter);
-
-      pass(sceneProg, scene);
-      const u = sceneProg.u;
-      gl!.uniform2f(u.uRes!, scene.w, scene.h);
-      gl!.uniform1f(u.uTime!, t);
-      gl!.uniform3f(u.uCamPos!, camX, camY, camZ);
-      gl!.uniform3f(u.uRight!, RX, RY, RZ);
-      gl!.uniform3f(u.uUp!, UX, UY, UZ);
-      gl!.uniform3f(u.uFwd!, fx, fy, fz);
-      gl!.uniform1f(u.uTanHalf!, Math.tan(Math.max(8, Math.min(110, C.fov)) * 0.5 * RAD));
-      gl!.uniform2f(u.uFocus!, C.focus[0], 1 - C.focus[1]);
-      gl!.uniform1f(u.uSteps!, software ? 130 : Math.max(60, Math.min(460, Math.round(C.steps))));
-      gl!.uniform1f(u.uSkyR!, Math.max(dist * 1.35, outer * 2.4));
-      gl!.uniform1f(u.uDiskIn!, Math.max(1.05, C.diskInner));
-      gl!.uniform1f(u.uDiskOut!, outer);
-      gl!.uniform1f(u.uThick!, Math.max(0.02, C.diskThickness));
-      gl!.uniform1f(u.uDensity!, Math.max(0, C.diskDensity));
-      gl!.uniform1f(u.uSpin!, C.spinSpeed * 6.2831853);
-      gl!.uniform1f(u.uGrain!, Math.max(0.02, C.grain));
-      gl!.uniform1f(u.uBright!, Math.max(0, C.brightness));
-      gl!.uniform1f(u.uDoppler!, Math.max(0, Math.min(1, C.doppler)));
-      gl!.uniform3f(u.uHot!, hot[0], hot[1], hot[2]);
-      gl!.uniform3f(u.uMid!, mid[0], mid[1], mid[2]);
-      gl!.uniform3f(u.uCool!, cool[0], cool[1], cool[2]);
-      gl!.uniform1f(u.uStars!, Math.max(0, C.starBrightness));
-      gl!.uniform1f(u.uEncode!, hdr ? 0 : 1);
-      const h = HALTON[settled % HALTON.length];
-      gl!.uniform2f(u.uJitter!, h[0] - 0.5, h[1] - 0.5);
-      gl!.uniform1f(u.uSeed!, (settled % 64) * 17.13);
-      draw();
-
-      const alpha = settled === 0 ? 1 : 0.14;
-      pass(blendProg, histB);
-      bind(scene.tex, 0);
-      bind(histA.tex, 1);
-      gl!.uniform1i(blendProg.u.uCur!, 0);
-      gl!.uniform1i(blendProg.u.uPrev!, 1);
-      gl!.uniform1f(blendProg.u.uAlpha!, alpha);
-      draw();
-      const shown = histB;
-      const tmp = histA;
-      histA = histB;
-      histB = tmp;
-      settled++;
-
-      pass(brightProg, bloomA);
-      bind(shown.tex, 0);
-      gl!.uniform1i(brightProg.u.uTex!, 0);
-      gl!.uniform2f(brightProg.u.uTexel!, 1 / shown.w, 1 / shown.h);
-      gl!.uniform1f(brightProg.u.uDecode!, hdr ? 0 : 1);
-      gl!.uniform1f(brightProg.u.uPack!, pack);
-      gl!.uniform1f(brightProg.u.uThreshold!, 0.85);
-      draw();
-
-      const blurStep = (src: Target, dst: Target, dx: number, dy: number): void => {
-        pass(blurProg!, dst);
-        bind(src.tex, 0);
-        gl!.uniform1i(blurProg!.u.uTex!, 0);
-        gl!.uniform2f(blurProg!.u.uStep!, dx / dst.w, dy / dst.h);
-        draw();
-      };
-      blurStep(bloomA, bloomB, 1, 0);
-      blurStep(bloomB, bloomA, 0, 1);
-      blurStep(bloomA, bloomB, 2.6, 0);
-      blurStep(bloomB, bloomA, 0, 2.6);
-
-      pass(compProg, null);
-      bind(shown.tex, 0);
-      bind(bloomA.tex, 1);
-      gl!.uniform1i(compProg.u.uScene!, 0);
-      gl!.uniform1i(compProg.u.uBloom!, 1);
-      gl!.uniform2f(compProg.u.uRes!, width, height);
-      gl!.uniform1f(compProg.u.uDecode!, hdr ? 0 : 1);
-      gl!.uniform1f(compProg.u.uPack!, pack);
-      gl!.uniform1f(compProg.u.uGlow!, Math.max(0, C.glow) * 0.26);
-      gl!.uniform1f(compProg.u.uExposure!, Math.max(0.05, C.exposure));
-      gl!.uniform1f(compProg.u.uVignette!, Math.max(0, Math.min(1, C.vignette)));
-      gl!.uniform1f(
-        compProg.u.uScrimDir!,
-        C.scrim === "left" ? 1 : C.scrim === "right" ? 2 : C.scrim === "top" ? 3 : C.scrim === "bottom" ? 4 : 0
-      );
-      gl!.uniform1f(compProg.u.uScrimAmt!, Math.max(0, Math.min(1, C.scrimStrength)));
-      gl!.uniform1f(compProg.u.uSeed!, (t * 60) % 1000);
-      draw();
-    }
-
-    function settle(passes: number): void {
-      for (let i = 0; i < passes; i++) render(clock);
-    }
-
-    function tick(now: number): void {
-      if (!running) return;
-      raf = requestAnimationFrame(tick);
-      if (!visible) { lastFrame = now; return; }
-      const dt = lastFrame ? Math.min(0.05, (now - lastFrame) / 1000) : 0;
-      lastFrame = now;
-      if (!CONFIG.paused && !reduced) clock += dt;
-      render(clock);
-    }
-
-    if (!build()) {
-      giveUp("build-failed");
-      return;
-    }
-    resize();
-    settle(reduced ? 16 : 1);
-    if (!reduced) raf = requestAnimationFrame(tick);
-
-    const ro = new ResizeObserver(() => {
-      resize();
-      if (reduced || CONFIG.paused) settle(16);
+    document.addEventListener("DOMContentLoaded", () => {
+        const host = document.getElementById("blackhole-host");
+        const canvas = document.getElementById("blackhole-canvas") as HTMLCanvasElement | null;
+        if (host && canvas) initBlackHole(host, canvas);
     });
-    ro.observe(host);
-
-    const io = new IntersectionObserver(
-      (entries) => { visible = entries[0] ? entries[0].isIntersecting : true; },
-      { threshold: 0 }
-    );
-    io.observe(host);
-
-    document.addEventListener("visibilitychange", () => {
-      visible = !document.hidden;
-      lastFrame = 0;
-    });
-
-    canvas.addEventListener("webglcontextlost", (e: Event) => {
-      e.preventDefault();
-      running = false;
-      cancelAnimationFrame(raf);
-      canvas.style.display = "none";
-    });
-
-    canvas.addEventListener("webglcontextrestored", () => {
-      width = height = sceneW = sceneH = 0;
-      if (!build()) {
-        giveUp("lost");
-        return;
-      }
-      canvas.style.display = "";
-      host.dataset.webgl = "";
-      resize();
-      running = true;
-      lastFrame = 0;
-      settle(reduced ? 16 : 1);
-      if (!reduced) raf = requestAnimationFrame(tick);
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const host = document.getElementById("blackhole-host") as HTMLDivElement | null;
-    const canvas = document.getElementById("blackhole-canvas") as HTMLCanvasElement | null;
-    if (host && canvas) initBlackHole(host, canvas);
-  });
 })();

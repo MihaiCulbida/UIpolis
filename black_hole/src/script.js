@@ -12,8 +12,8 @@
         diskThickness: 0.26,
         diskDensity: 1,
         brightness: 1,
-        spinSpeed: 0.06,
-        grain: 0.48,
+        spinSpeed: 0.32,
+        grain: 0.58,
         doppler: 0.35,
         hotColor: "#FFF3DE",
         midColor: "#FF9838",
@@ -54,7 +54,6 @@ void main() {
 precision highp float;
 
 #define MAX_STEPS 460
-#define WIND_CYCLE 46.0
 
 varying vec2 vUv;
 
@@ -133,16 +132,8 @@ void gasAt(vec3 p, float rd, float dt, out float dens, out vec3 tint, out float 
   float omega = uSpin * pow(uDiskIn / rd, 1.5);
   float lr = log(rd) * 1.1 + uSpin * uTime * 0.05;
 
-  float u = uTime / WIND_CYCLE;
-  float fA = fract(u);
-  float fB = fract(u + 0.5);
-  float w = abs(2.0 * fA - 1.0);
-
-  float cloudsA = fbm(vec3(vec2(cos(phi + omega * fA * WIND_CYCLE),
-                                sin(phi + omega * fA * WIND_CYCLE)) * (rd * uGrain), lr), lod);
-  float cloudsB = fbm(vec3(vec2(cos(phi + omega * fB * WIND_CYCLE),
-                                sin(phi + omega * fB * WIND_CYCLE)) * (rd * uGrain), lr + 40.0), lod);
-  float clouds = mix(cloudsA, cloudsB, w);
+  float rotAngle = phi + omega * uTime;
+  float clouds = fbm(vec3(vec2(cos(rotAngle), sin(rotAngle)) * (rd * uGrain), lr), lod);
 
   float filaments = clouds * clouds * 1.75;
 
@@ -372,7 +363,7 @@ void main() {
         const full = h.length === 3 ? h[0] + h[0] + h[1] + h[1] + h[2] + h[2] : h.slice(0, 6);
         const n = parseInt(full, 16);
         const srgb = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
-        return srgb.map((v) => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+        return srgb.map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
     }
     function initBlackHole(host, canvas) {
         const reduced = typeof window.matchMedia === "function" &&
@@ -385,7 +376,8 @@ void main() {
             powerPreference: "high-performance",
             preserveDrawingBuffer: false,
         };
-        const gl = (canvas.getContext("webgl2", opts) || canvas.getContext("webgl", opts));
+        const gl = canvas.getContext("webgl2", opts) ||
+            canvas.getContext("webgl", opts);
         function giveUp(why) {
             host.dataset.webgl = why;
             canvas.style.display = "none";
@@ -724,7 +716,9 @@ void main() {
                 settle(16);
         });
         ro.observe(host);
-        const io = new IntersectionObserver((entries) => { visible = entries[0] ? entries[0].isIntersecting : true; }, { threshold: 0 });
+        const io = new IntersectionObserver((entries) => {
+            visible = entries[0] ? entries[0].isIntersecting : true;
+        }, { threshold: 0 });
         io.observe(host);
         document.addEventListener("visibilitychange", () => {
             visible = !document.hidden;
