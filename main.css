@@ -6,6 +6,15 @@ html, body {
   background: #f4f4f6;
 }
 
+::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 .site-header {
   position: fixed;
   top: 0;
