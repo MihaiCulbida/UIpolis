@@ -1,5 +1,6 @@
 const searchInput = document.getElementById('searchInput');
 const cards = document.querySelectorAll('#cardContainer .box');
+const siteHeader = document.getElementById('siteHeader');
 
 searchInput.addEventListener('input', () => {
   const query = searchInput.value.trim().toLowerCase();
@@ -18,6 +19,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 20) {
+    siteHeader.classList.add('scrolled');
+  } else {
+    siteHeader.classList.remove('scrolled');
+  }
+});
+
 const actionIcons = document.querySelectorAll('.action-icon');
 
 actionIcons.forEach(icon => {
@@ -27,10 +36,8 @@ actionIcons.forEach(icon => {
 
     if (icon.alt === 'Code') {
       console.log('Click pe Code');
-      
     } else if (icon.alt === 'Bookmark') {
       console.log('Click pe Bookmark');
-      
     }
   });
 });
