@@ -182,3 +182,22 @@ html, body {
 .action-icon:active {
   transform: scale(0.9);
 }
+
+.global-bookmark-icon {
+  position: fixed;
+  top: 40px;
+  right: 60px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  z-index: 100;
+  transition: transform 0.2s ease;
+}
+
+.global-bookmark-icon:hover {
+  transform: scale(1.15);
+}
+
+.global-bookmark-icon:active {
+  transform: scale(0.9);
+}
