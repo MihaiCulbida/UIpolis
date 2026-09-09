@@ -27,17 +27,31 @@ window.addEventListener('scroll', () => {
   }
 });
 
-const actionIcons = document.querySelectorAll('.action-icon');
+const actionIcons = document.querySelectorAll('.action-icon[alt="Bookmark"]');
 
 actionIcons.forEach(icon => {
-  icon.addEventListener('click', (e) => {
-    e.preventDefault(); 
-    e.stopPropagation(); 
 
-    if (icon.alt === 'Code') {
-      console.log('Click pe Code');
-    } else if (icon.alt === 'Bookmark') {
-      console.log('Click pe Bookmark');
+  const cardName = icon.closest('.box').querySelector('.box-name').textContent;
+  const savedBookmarks = JSON.parse(localStorage.getItem('bookmarks') || '[]');
+  if (savedBookmarks.includes(cardName)) {
+    icon.src = 'img/bookmark.png';
+    icon.classList.add('bookmarked');
+  }
+
+  icon.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const isBookmarked = icon.classList.toggle('bookmarked');
+    icon.src = isBookmarked ? 'img/bookmark.png' : 'img/bookmark.png';
+
+    let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '[]');
+    if (isBookmarked) {
+      bookmarks.push(cardName);
+    } else {
+      bookmarks = bookmarks.filter(name => name !== cardName);
     }
+    localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+
   });
 });
