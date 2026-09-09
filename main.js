@@ -34,7 +34,7 @@ actionIcons.forEach(icon => {
   const cardName = icon.closest('.box').querySelector('.box-name').textContent;
   const savedBookmarks = JSON.parse(localStorage.getItem('bookmarks') || '[]');
   if (savedBookmarks.includes(cardName)) {
-    icon.src = 'img/bookmark.png';
+    icon.src = 'img/bookmark1.png';
     icon.classList.add('bookmarked');
   }
 
@@ -43,7 +43,7 @@ actionIcons.forEach(icon => {
     e.stopPropagation();
 
     const isBookmarked = icon.classList.toggle('bookmarked');
-    icon.src = isBookmarked ? 'img/bookmark.png' : 'img/bookmark.png';
+    icon.src = isBookmarked ? 'img/bookmark1.png' : 'img/bookmark.png';
 
     let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '[]');
     if (isBookmarked) {
