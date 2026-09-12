@@ -142,3 +142,25 @@ savedList.addEventListener('click', (e) => {
 
   window.location.href = item.dataset.href;
 });
+
+const codeOverlay = document.getElementById('codeOverlay');
+const closeCodeBtn = document.getElementById('closeCodeBtn');
+const codeIcons = document.querySelectorAll('.action-icon[alt="Code"]');
+
+codeIcons.forEach(icon => {
+  icon.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    codeOverlay.classList.add('active');
+  });
+});
+
+closeCodeBtn.addEventListener('click', () => {
+  codeOverlay.classList.remove('active');
+});
+
+codeOverlay.addEventListener('click', (e) => {
+  if (e.target === codeOverlay) {
+    codeOverlay.classList.remove('active');
+  }
+});
