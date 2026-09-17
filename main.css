@@ -4,7 +4,6 @@ html, body {
   width: 100%;
   height: 100%;
   background: #f4f4f6;
-  user-select: none;
 }
 
 ::-webkit-scrollbar {
@@ -365,4 +364,51 @@ html {
   font-family: sans-serif;
   font-size: 14px;
   color: #888;
+}
+
+.modal-code {
+  width: 640px;
+  max-width: 92%;
+  max-height: 80vh;
+}
+
+.code-tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.code-tab {
+  flex: 1;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  font-family: sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #888;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.code-tab:hover  { color: #1a1a1a; }
+.code-tab.active { color: #1a1a1a; border-bottom: 2px solid #1a1a1a; }
+
+.code-content {
+  overflow: auto;
+  max-height: calc(80vh - 110px);
+  background: #1e1e1e;
+}
+
+.code-content pre {
+  margin: 0;
+  padding: 16px 20px;
+}
+
+.code-content code {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #d4d4d4;
+  white-space: pre;
 }
