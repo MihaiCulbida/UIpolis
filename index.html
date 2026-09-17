@@ -251,10 +251,18 @@
 </div>
 
 <div class="modal-overlay" id="codeOverlay">
-  <div class="modal" id="codeModal">
+  <div class="modal modal-code" id="codeModal">
     <div class="modal-header">
       <span class="modal-title">Code</span>
       <span class="modal-close" id="closeCodeBtn">&times;</span>
+    </div>
+    <div class="code-tabs">
+      <button class="code-tab active" data-tab="html">HTML</button>
+      <button class="code-tab" data-tab="css">CSS</button>
+      <button class="code-tab" data-tab="js">JS</button>
+    </div>
+    <div class="code-content">
+      <pre><code id="codeDisplay"></code></pre>
     </div>
   </div>
 </div>
