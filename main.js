@@ -143,15 +143,124 @@ savedList.addEventListener('click', (e) => {
   window.location.href = item.dataset.href;
 });
 
-const codeOverlay = document.getElementById('codeOverlay');
-const closeCodeBtn = document.getElementById('closeCodeBtn');
-const codeIcons = document.querySelectorAll('.action-icon[alt="Code"]');
+const codeOverlay   = document.getElementById('codeOverlay');
+const closeCodeBtn  = document.getElementById('closeCodeBtn');
+const codeIcons     = document.querySelectorAll('.action-icon[alt="Code"]');
+const codeTabs      = document.querySelectorAll('.code-tab');
+const codeDisplay   = document.getElementById('codeDisplay');
+
+let currentCode = { html: '', css: '', js: '' };
+
+function resolveUrl(href, baseUrl) {
+  try {
+    return new URL(href, baseUrl).href;
+  } catch {
+    return href;
+  }
+}
+
+async function fetchExternal(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return `/* nu am putut incarca: ${url} */`;
+    return await res.text();
+  } catch {
+    return `/* eroare la incarcarea: ${url} */`;
+  }
+}
+
+async function extractParts(rawHtml, baseUrl) {
+
+  let css = '';
+
+  const styleMatches = [...rawHtml.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)];
+  css += styleMatches.map(m => m[1].trim()).join('\n\n');
+
+  const linkMatches = [...rawHtml.matchAll(/<link[^>]+rel=["']stylesheet["'][^>]*>/gi)];
+  for (const tag of linkMatches) {
+    const hrefMatch = tag[0].match(/href=["']([^"']+)["']/i);
+    if (!hrefMatch) continue;
+    const cssText = await fetchExternal(resolveUrl(hrefMatch[1], baseUrl));
+    css += (css ? '\n\n' : '') + `/* ${hrefMatch[1]} */\n` + cssText.trim();
+  }
+
+  let js = '';
+
+  const scriptMatches = [...rawHtml.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/gi)];
+  for (const [, attrs, inlineCode] of scriptMatches) {
+    const srcMatch = attrs.match(/src=["']([^"']+)["']/i);
+    if (srcMatch) {
+      const jsText = await fetchExternal(resolveUrl(srcMatch[1], baseUrl));
+      js += (js ? '\n\n' : '') + `/* ${srcMatch[1]} */\n` + jsText.trim();
+    } else if (inlineCode.trim()) {
+      js += (js ? '\n\n' : '') + inlineCode.trim();
+    }
+  }
+
+  let html = rawHtml;
+  const bodyMatch = rawHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (bodyMatch) html = bodyMatch[1];
+
+  html = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .trim();
+
+  return { html, css: css.trim(), js: stripLiveReloadScript(js.trim()) };
+}
+
+function stripLiveReloadScript(js) {
+  return js
+    .replace(/\/\/\s*<!\[CDATA\[[\s\S]*?\/\/\s*\]\]>/g, '')
+    .replace(/[^\n]*livereload[^\n]*\n?/gi, '')
+    .trim();
+}
+
+function showTab(tabName) {
+  codeTabs.forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.tab === tabName);
+  });
+
+  const content = currentCode[tabName];
+  codeDisplay.textContent = content && content.length > 0
+    ? content
+    : `/* nu s-a gasit continut pentru ${tabName.toUpperCase()} */`;
+}
+
+codeTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    showTab(tab.dataset.tab);
+  });
+});
 
 codeIcons.forEach(icon => {
-  icon.addEventListener('click', (e) => {
+  icon.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const cardHref = icon.closest('.box').getAttribute('href');
+
+    currentCode = { html: 'Se incarca...', css: 'Se incarca...', js: 'Se incarca...' };
+    showTab('html');
     codeOverlay.classList.add('active');
+
+    try {
+      const res = await fetch(cardHref);
+      if (!res.ok) throw new Error('Fisierul nu a putut fi gasit: ' + cardHref);
+
+      const rawHtml = await res.text();
+      const baseUrl = new URL(cardHref, window.location.href).href;
+      currentCode = await extractParts(rawHtml, baseUrl);
+    } catch (err) {
+      console.error(err);
+      currentCode = {
+        html: '// Eroare la incarcarea fisierului.\n// Verifica daca site-ul ruleaza pe un server local (nu direct din file://).',
+        css: '',
+        js: ''
+      };
+    }
+
+    showTab('html');
   });
 });
 
